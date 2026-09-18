@@ -20,7 +20,7 @@ func move_to(cell: Vector2i):
 			tween.kill()
 		tween = create_tween()
 		tween.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
-		tween.tween_property(self, "position", map.map_to_local(cell_position), 0.2)
+		tween.tween_property(self, "position", map.map_to_local(cell_position), 0.07);
 	else:
 		self.position = map.map_to_local(cell_position)
 	#return true

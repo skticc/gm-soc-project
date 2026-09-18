@@ -3,57 +3,90 @@ class_name Player
 
 signal player_move
 
+const MOVE_DIRECTIONS: Dictionary = {
+	"up": Vector2i(0, -1),
+	"down": Vector2i(0, 1),
+	"left": Vector2i(-1, 0),
+	"right": Vector2i(1, 0)
+}
 
-const MOVE_INTERVAL := 0.2 
+const MOVE_INTERVAL := 0.1
 var move_cooldown := 0.0
 var step_len := 1
 var has_superpower := false
+
+@onready var move_buffer: Timer = $MoveBuffer;
+var buffered_input: Vector2i = Vector2i.ZERO;
 
 func _ready() -> void:
 	super._ready()
 	#button.pressed.connect(_on_pressed)
 	GlobalSignal.on_red_tile.connect(_on_red_tile)
 	GlobalSignal.on_green_tile.connect(_on_green_tile)
+
+func _input(event: InputEvent) -> void:
+	_receive_move_input(event);
+	
+
 func _process(delta: float) -> void:
-	move_cooldown -= delta
-	if move_cooldown > 0.0:
-		return
-	if tween and tween.is_running():
-		return
+	move_cooldown -= delta;
 		
-	var dir := Vector2i(
-		Input.get_vector("left", "right", "up", "down").round()
-	)
-	if dir == Vector2i.ZERO:
-		return
-	if dir.x != 0:
-		dir.y = 0
+	if (!tween or !tween.is_running()):
+		if (buffered_input.length() > 0):
+			_move(buffered_input);
+			buffered_input = Vector2i.ZERO;
 	
-	player_move.emit()
-	var dest :=	cell_position + dir * step_len
-	if is_wall(dest):
-		return
-		
-	var projectile := get_projectile(dest)
-	if projectile:
-		var projectile_dest
-		if has_superpower:
-			projectile_dest = _find_superpower_dest(dest, dir)
-		else:
-			projectile_dest = dest + dir
-		if is_wall(projectile_dest) or get_projectile(projectile_dest):
-			return
-		projectile.move_to(projectile_dest)
+	#_receive_move_input();
 	
-	move_to(dest)
-	
-	has_superpower = false
-	step_len = 1
-	move_cooldown = MOVE_INTERVAL
+	#print(move_cooldown);
+	#if ((tween == null or !tween.is_running()) and move_cooldown < 0.0):
+	#	_move(requested_move);
 	
 #func _on_pressed() -> void:
 	#switch_animation()
 
+func _move(dir: Vector2i) -> void:
+	player_move.emit();
+	
+	var dest: Vector2i = cell_position + (dir * step_len);
+	
+	if (is_wall(dest) or !_check_projectile(dir, dest)):
+		return;
+	
+	move_to(dest);
+	
+	has_superpower = false;
+	step_len = 1;
+	move_cooldown = MOVE_INTERVAL;
+
+# Checks if there is a projectile at the player destination and attempts to
+# push it if there is.
+#
+# Return value: True if successful, False if not
+func _check_projectile(dir: Vector2i, dest: Vector2i) -> bool:
+	var projectile := get_projectile(dest)
+	if projectile:
+		var projectile_dest
+		if has_superpower:
+			projectile_dest = _find_superpower_dest(dest, dir);
+		else:
+			projectile_dest = dest + dir
+		if is_wall(projectile_dest) or get_projectile(projectile_dest):
+			return false;
+		projectile.move_to(projectile_dest)
+
+	return true;
+
+func _receive_move_input(event: InputEvent) -> void:
+	var currently_pressed: bool = false;
+	var move_direction: Vector2i = Vector2i.ZERO;
+	
+	for direction in MOVE_DIRECTIONS:
+		if event.is_action_pressed(direction) and !currently_pressed:
+			currently_pressed = true;
+			buffered_input = MOVE_DIRECTIONS[direction];
+			$MoveBuffer.start();
+			print(buffered_input);
 
 func _on_red_tile() -> void:
 	step_len = 2
@@ -66,7 +99,10 @@ func get_player_position() -> Vector2:
 	
 func _find_superpower_dest(cell_pos: Vector2i, dir: Vector2i) -> Vector2i:
 	var dest := cell_pos + dir
-	while not is_wall(dest):
+	while not is_wall(dest) and not get_projectile(dest):
 		dest += dir
 	dest -= dir
 	return dest
+
+func _on_move_buffer_timeout() -> void:
+	buffered_input = Vector2i.ZERO;
