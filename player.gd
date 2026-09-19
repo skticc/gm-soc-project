@@ -15,6 +15,7 @@ var move_cooldown := 0.0
 var step_len := 1
 var has_superpower := false
 
+@onready var automove_timer: Timer = $AutoMove;
 @onready var move_buffer: Timer = $MoveBuffer;
 var buffered_input: Vector2i = Vector2i.ZERO;
 
@@ -26,15 +27,23 @@ func _ready() -> void:
 
 func _input(event: InputEvent) -> void:
 	_receive_move_input(event);
-	
+	super._input(event);
+
+func _physics_process(delta: float) -> void:
+	if (!tween or !tween.is_running()):
+		_receive_automove_input();
+		
+		if (buffered_input.length() > 0):
+			automove_timer.start();
+			
+			_move(buffered_input);
+			
+			buffered_input = Vector2i.ZERO;
 
 func _process(delta: float) -> void:
 	move_cooldown -= delta;
-		
-	if (!tween or !tween.is_running()):
-		if (buffered_input.length() > 0):
-			_move(buffered_input);
-			buffered_input = Vector2i.ZERO;
+	
+	$Sprite2D.scale = $Sprite2D.scale.lerp(Vector2(1,1), 0.26);
 	
 	#_receive_move_input();
 	
@@ -58,6 +67,15 @@ func _move(dir: Vector2i) -> void:
 	has_superpower = false;
 	step_len = 1;
 	move_cooldown = MOVE_INTERVAL;
+	
+	if (abs(dir.x) > 0):
+		$Sprite2D.flip_h = (dir.x < 0);
+		
+		$Sprite2D.scale.x = 2;
+		$Sprite2D.scale.y = 0.5;
+	else:
+		$Sprite2D.scale.y = 2;
+		$Sprite2D.scale.x = 0.5;
 
 # Checks if there is a projectile at the player destination and attempts to
 # push it if there is.
@@ -78,15 +96,22 @@ func _check_projectile(dir: Vector2i, dest: Vector2i) -> bool:
 	return true;
 
 func _receive_move_input(event: InputEvent) -> void:
-	var currently_pressed: bool = false;
 	var move_direction: Vector2i = Vector2i.ZERO;
 	
 	for direction in MOVE_DIRECTIONS:
-		if event.is_action_pressed(direction) and !currently_pressed:
-			currently_pressed = true;
+		if event.is_action_pressed(direction):
 			buffered_input = MOVE_DIRECTIONS[direction];
 			$MoveBuffer.start();
-			print(buffered_input);
+			break;
+
+func _receive_automove_input() -> void:
+	var move_direction: Vector2i = Vector2i.ZERO;
+	
+	for direction in MOVE_DIRECTIONS:
+		if (Input.is_action_pressed(direction) && automove_timer.is_stopped()):
+			buffered_input = MOVE_DIRECTIONS[direction];
+			$MoveBuffer.start();
+			break;
 
 func _on_red_tile() -> void:
 	step_len = 2

@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://7lc26xtgb37h" path="res://red_tile.gd" id="1_hqd3i"]
 
 [node name="RedTile" type="Node2D" unique_id=1262693316]
+z_index = -1
 script = ExtResource("1_hqd3i")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1701356321]
