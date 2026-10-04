@@ -10,18 +10,21 @@ const MOVE_DIRECTIONS: Dictionary = {
 	"right": Vector2i(1, 0)
 }
 
-const MOVE_INTERVAL := 0.1
-var move_cooldown := 0.0
 var step_len := 1
 var has_superpower := false
 
+# Timer that handles automatic movement
 @onready var automove_timer: Timer = $AutoMove;
+
+# Timer that allows the player to buffer the last input
 @onready var move_buffer: Timer = $MoveBuffer;
-var buffered_input: Vector2i = Vector2i.ZERO;
+
+# Array of buffered inputs processed in a queue
+var buffered_input: Array[Vector2i] = [];
 
 func _ready() -> void:
 	super._ready()
-	#button.pressed.connect(_on_pressed)
+
 	GlobalSignal.on_red_tile.connect(_on_red_tile)
 	GlobalSignal.on_green_tile.connect(_on_green_tile)
 
@@ -31,28 +34,17 @@ func _input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	if (!tween or !tween.is_running()):
-		_receive_automove_input();
-		
-		if (buffered_input.length() > 0):
+		if (len(buffered_input) > 0):
 			automove_timer.start();
 			
-			_move(buffered_input);
+			_move(buffered_input[0]);
 			
-			buffered_input = Vector2i.ZERO;
+			buffered_input.pop_front();
+			
+		_receive_automove_input();
 
 func _process(delta: float) -> void:
-	move_cooldown -= delta;
-	
 	$Sprite2D.scale = $Sprite2D.scale.lerp(Vector2(1,1), 0.26);
-	
-	#_receive_move_input();
-	
-	#print(move_cooldown);
-	#if ((tween == null or !tween.is_running()) and move_cooldown < 0.0):
-	#	_move(requested_move);
-	
-#func _on_pressed() -> void:
-	#switch_animation()
 
 func _move(dir: Vector2i) -> void:
 	player_move.emit();
@@ -66,7 +58,6 @@ func _move(dir: Vector2i) -> void:
 	
 	has_superpower = false;
 	step_len = 1;
-	move_cooldown = MOVE_INTERVAL;
 	
 	if (abs(dir.x) > 0):
 		$Sprite2D.flip_h = (dir.x < 0);
@@ -100,18 +91,16 @@ func _receive_move_input(event: InputEvent) -> void:
 	
 	for direction in MOVE_DIRECTIONS:
 		if event.is_action_pressed(direction):
-			buffered_input = MOVE_DIRECTIONS[direction];
-			$MoveBuffer.start();
-			break;
+			buffered_input.append(MOVE_DIRECTIONS[direction]);
+			move_buffer.start();
 
 func _receive_automove_input() -> void:
 	var move_direction: Vector2i = Vector2i.ZERO;
 	
 	for direction in MOVE_DIRECTIONS:
 		if (Input.is_action_pressed(direction) && automove_timer.is_stopped()):
-			buffered_input = MOVE_DIRECTIONS[direction];
-			$MoveBuffer.start();
-			break;
+			buffered_input.append(MOVE_DIRECTIONS[direction]);
+			move_buffer.start();
 
 func _on_red_tile() -> void:
 	step_len = 2
@@ -130,4 +119,4 @@ func _find_superpower_dest(cell_pos: Vector2i, dir: Vector2i) -> Vector2i:
 	return dest
 
 func _on_move_buffer_timeout() -> void:
-	buffered_input = Vector2i.ZERO;
+	buffered_input.clear();
